@@ -9,6 +9,10 @@ let currentMode = ''; // 'local', 'cloud_host', 'cloud_client'
 // Cloud State
 let mqttClient = null;
 let roomCode = '';
+let myClientId = Math.random().toString(36).substring(2, 10);
+let clockOffset = 0; // Host Time - Local Time
+let pingInterval = null;
+
 let cloudState = {
     isPlaying: false,
     trackTitle: '',
@@ -102,22 +106,61 @@ function initMqtt() {
     
     mqttClient.on('connect', () => {
         console.log("Connected to Cloud Broker");
-        document.getElementById('sync-status').innerText = currentMode === 'cloud_host' ? 'HOSTING CLOUD ROOM' : 'CONNECTED TO CLOUD';
+        document.getElementById('sync-status').innerText = currentMode === 'cloud_host' ? 'HOSTING CLOUD ROOM' : 'CALIBRATING CLOCK...';
         document.getElementById('sync-status').className = 'sync-badge active';
         
-        if (currentMode === 'cloud_client') {
+        if (currentMode === 'cloud_host') {
+            mqttClient.subscribe(`dualbeat/room/${roomCode}/ping`);
+        } else if (currentMode === 'cloud_client') {
             mqttClient.subscribe(topic);
+            mqttClient.subscribe(`dualbeat/room/${roomCode}/pong`);
+            
+            // Perform NTP-style clock calibration
+            sendPing();
+            pingInterval = setInterval(sendPing, 5000); // recalibrate every 5s
         }
     });
     
     mqttClient.on('message', (t, message) => {
-        if (t === topic && currentMode === 'cloud_client') {
+        if (currentMode === 'cloud_host' && t === `dualbeat/room/${roomCode}/ping`) {
             try {
-                const data = JSON.parse(message.toString());
-                handleSyncData(data, true);
+                const p = JSON.parse(message.toString());
+                mqttClient.publish(`dualbeat/room/${roomCode}/pong`, JSON.stringify({
+                    clientId: p.clientId,
+                    clientTime: p.clientTime,
+                    hostTime: Date.now()
+                }), { qos: 0 });
             } catch(e) {}
         }
+        else if (currentMode === 'cloud_client') {
+            if (t === topic) {
+                try {
+                    const data = JSON.parse(message.toString());
+                    handleSyncData(data, true);
+                } catch(e) {}
+            } else if (t === `dualbeat/room/${roomCode}/pong`) {
+                try {
+                    const p = JSON.parse(message.toString());
+                    if (p.clientId === myClientId) {
+                        const current = Date.now();
+                        const rtt = current - p.clientTime;
+                        const estimatedHostTime = p.hostTime + (rtt / 2);
+                        clockOffset = estimatedHostTime - current;
+                        document.getElementById('sync-status').innerText = "SYNCED (RTT " + rtt + "ms)";
+                    }
+                } catch(e) {}
+            }
+        }
     });
+}
+
+function sendPing() {
+    if (mqttClient && mqttClient.connected) {
+        mqttClient.publish(`dualbeat/room/${roomCode}/ping`, JSON.stringify({
+            clientId: myClientId,
+            clientTime: Date.now()
+        }), { qos: 0 });
+    }
 }
 
 function publishCloudState() {
@@ -209,32 +252,51 @@ function handleSyncData(data, isCloud) {
     applyTrackTitle(masterTitle);
     
     if (isCloud && data.timestamp) {
-        // Estimate cloud latency offset
-        const driftMs = Date.now() - data.timestamp;
-        if (driftMs > 0 && driftMs < 5000) {
+        // Precise NTP-calibrated transit latency mapping
+        const hostTimeNow = Date.now() + clockOffset;
+        const driftMs = hostTimeNow - data.timestamp;
+        if (driftMs > -500 && driftMs < 5000) {
             masterPos += (driftMs / 1000.0);
         }
     }
 
     if (masterIsPlaying) {
-        document.getElementById('sync-status').innerText = "SYNCED & CALIBRATED";
+        if (currentMode !== 'cloud_client') {
+             // For legacy local mode
+             document.getElementById('sync-status').innerText = "SYNCED & CALIBRATED";
+        }
         document.getElementById('sync-status').className = "sync-badge active";
         
+        // Include manual user calibration latency
         const targetPos = masterPos + (compensationMs / 1000.0);
         
         if (masterTitle.startsWith("YOUTUBE:")) {
             if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
                 const drift = Math.abs(ytPlayer.getCurrentTime() - targetPos);
                 if (ytPlayer.getPlayerState() !== 1) ytPlayer.playVideo();
-                if (drift > 1.5) ytPlayer.seekTo(targetPos, true);
+                // YouTube buffer tolerance: only hard seek if off by more than 200ms
+                if (drift > 0.200) ytPlayer.seekTo(targetPos + 0.1, true);
             }
         } else {
-            const drift = Math.abs((audioElement.currentTime || 0) - targetPos);
+            const drift = targetPos - (audioElement.currentTime || 0);
+            const absDrift = Math.abs(drift);
+            
             if (audioElement && audioElement.paused) {
                 audioElement.play().catch(e => console.log("Awaiting gesture"));
             }
-            if (audioElement && drift > 0.080) {
-                audioElement.currentTime = targetPos;
+            
+            if (audioElement) {
+                if (absDrift > 0.250) {
+                    // Hard seek if way off
+                    audioElement.currentTime = targetPos;
+                    audioElement.playbackRate = 1.0;
+                } else if (absDrift > 0.025) {
+                    // Micro-sync playback rate correction (Pitch shifting sync)
+                    audioElement.playbackRate = drift > 0 ? 1.04 : 0.96;
+                } else {
+                    // Perfect sync range
+                    audioElement.playbackRate = 1.0;
+                }
             }
         }
     } else {
