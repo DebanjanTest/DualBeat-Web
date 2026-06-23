@@ -39,7 +39,10 @@ window.onYouTubeIframeAPIReady = function() {
 }
 
 function initOrLoadYouTube(vid) {
-    if (!isYoutubeApiReady) return;
+    if (!isYoutubeApiReady) {
+        setTimeout(() => initOrLoadYouTube(vid), 500);
+        return;
+    }
     
     if (!ytPlayer) {
         ytPlayer = new YT.Player('yt-player', {
@@ -212,17 +215,27 @@ function loadYouTubeVideo() {
     // Extract video ID and playlist ID
     let vid = null;
     let listId = null;
-    try {
-        const u = new URL(url);
-        vid = u.searchParams.get('v');
-        listId = u.searchParams.get('list');
-    } catch(e) {
-        const listMatch = url.match(/[?&]list=([^&]+)/);
-        if (listMatch) listId = listMatch[1];
-        const vMatch = url.match(/(?:youtu\.be\/|v=)([^&]+)/);
-        if (vMatch) vid = vMatch[1];
+    
+    // Extract playlist ID
+    const listMatch = url.match(/[?&]list=([^&]+)/);
+    if (listMatch) listId = listMatch[1];
+    
+    // Extract video ID (robust regex for standard, short, and embed links)
+    const rx = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    const vMatch = url.match(rx);
+    if (vMatch) {
+        vid = vMatch[1];
     }
-    if (!vid && !listId) vid = url;
+    
+    // Fallback if it's just a raw 11-character ID
+    if (!vid && !listId && url.length === 11) {
+        vid = url;
+    }
+    
+    if (!vid && !listId) {
+        alert("Could not extract a valid YouTube Video ID or Playlist from the link.");
+        return;
+    }
     
     if (listId) {
         // It's a Mix / Playlist
@@ -230,15 +243,23 @@ function loadYouTubeVideo() {
         document.getElementById('wave-svg').style.display = 'none';
         if (audioElement) audioElement.pause();
         
-        if (!ytPlayer) {
-            ytPlayer = new YT.Player('yt-player', {
-                height: '100%', width: '100%',
-                playerVars: { 'autoplay': 1, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'listType': 'playlist', 'list': listId },
-                events: { 'onReady': e => e.target.playVideo() }
-            });
-        } else {
-            ytPlayer.loadPlaylist({list: listId, listType: 'playlist'});
-        }
+        const loadPlaylistFunc = () => {
+            if (!isYoutubeApiReady) {
+                setTimeout(loadPlaylistFunc, 500);
+                return;
+            }
+            if (!ytPlayer) {
+                ytPlayer = new YT.Player('yt-player', {
+                    height: '100%', width: '100%',
+                    playerVars: { 'autoplay': 1, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'listType': 'playlist', 'list': listId },
+                    events: { 'onReady': e => e.target.playVideo() }
+                });
+            } else {
+                ytPlayer.loadPlaylist({list: listId, listType: 'playlist'});
+            }
+        };
+        loadPlaylistFunc();
+        
         window.currentTrackTitle = "HOST_PLAYLIST_LOADING";
     } else if (vid) {
         cloudState.trackTitle = "YOUTUBE:" + vid;
