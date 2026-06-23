@@ -86,10 +86,31 @@ function hostCloudRoom() {
     
     // Host pulse loop
     setInterval(() => {
-        if (cloudState.trackTitle.startsWith("YOUTUBE:") && ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+        if (currentMode === 'cloud_host' && ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
             const state = ytPlayer.getPlayerState();
             cloudState.isPlaying = (state === 1);
             cloudState.trackPositionMs = Math.floor(ytPlayer.getCurrentTime() * 1000);
+            
+            // Dynamic video ID extraction to perfectly support Playlists / Mixes auto-advancing
+            let currentVid = null;
+            let currentName = "YouTube Video";
+            if (typeof ytPlayer.getVideoData === 'function') {
+                const data = ytPlayer.getVideoData();
+                if (data && data.video_id) {
+                    currentVid = data.video_id;
+                    if (data.title) currentName = data.title;
+                }
+            }
+            if (!currentVid && typeof ytPlayer.getVideoUrl === 'function') {
+                const match = ytPlayer.getVideoUrl().match(/[?&]v=([^&]+)/);
+                if (match && match[1]) currentVid = match[1];
+            }
+            
+            if (currentVid) {
+                const newTitle = "YOUTUBE:" + currentVid + "|" + currentName;
+                cloudState.trackTitle = newTitle;
+                window.currentTrackTitle = newTitle; // Lock host local state to prevent reloading
+            }
         }
         cloudState.timestamp = Date.now();
         publishCloudState();
@@ -181,23 +202,52 @@ function publishCloudState() {
 }
 
 function loadYouTubeVideo() {
-    const url = document.getElementById('yt-url').value.trim();
+    const inputEl = document.getElementById('yt-url');
+    const url = inputEl.value.trim();
     if (!url) return;
     
-    // Extract video ID
-    let vid = url;
-    const rx = /^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*/;
-    const match = url.match(rx);
-    if (match && match[1]) {
-        vid = match[1];
+    // Clear input visually per user request
+    inputEl.value = '';
+    
+    // Extract video ID and playlist ID
+    let vid = null;
+    let listId = null;
+    try {
+        const u = new URL(url);
+        vid = u.searchParams.get('v');
+        listId = u.searchParams.get('list');
+    } catch(e) {
+        const listMatch = url.match(/[?&]list=([^&]+)/);
+        if (listMatch) listId = listMatch[1];
+        const vMatch = url.match(/(?:youtu\.be\/|v=)([^&]+)/);
+        if (vMatch) vid = vMatch[1];
+    }
+    if (!vid && !listId) vid = url;
+    
+    if (listId) {
+        // It's a Mix / Playlist
+        document.getElementById('yt-player-container').style.display = 'block';
+        document.getElementById('wave-svg').style.display = 'none';
+        if (audioElement) audioElement.pause();
+        
+        if (!ytPlayer) {
+            ytPlayer = new YT.Player('yt-player', {
+                height: '100%', width: '100%',
+                playerVars: { 'autoplay': 1, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'listType': 'playlist', 'list': listId },
+                events: { 'onReady': e => e.target.playVideo() }
+            });
+        } else {
+            ytPlayer.loadPlaylist({list: listId, listType: 'playlist'});
+        }
+        window.currentTrackTitle = "HOST_PLAYLIST_LOADING";
+    } else if (vid) {
+        cloudState.trackTitle = "YOUTUBE:" + vid;
+        applyTrackTitle(cloudState.trackTitle);
     }
     
-    cloudState.trackTitle = "YOUTUBE:" + vid;
     cloudState.trackPositionMs = 0;
     cloudState.isPlaying = true;
     publishCloudState();
-    
-    applyTrackTitle(cloudState.trackTitle);
 }
 
 function toggleCloudPlayPause() {
@@ -222,20 +272,25 @@ function startUI() {
 }
 
 function applyTrackTitle(title) {
-    document.getElementById('track-title').innerText = title.replace("YOUTUBE:", "YouTube Video: ");
+    if (window.currentTrackTitle === title) return;
+    window.currentTrackTitle = title;
     
-    if (window.currentTrackTitle !== title) {
-        window.currentTrackTitle = title;
+    if (title.startsWith("YOUTUBE:")) {
+        const payload = title.substring(8);
+        const parts = payload.split("|");
+        const vid = parts[0];
+        const niceName = parts.length > 1 ? parts.slice(1).join("|") : vid;
         
-        if (title.startsWith("YOUTUBE:")) {
-            const vid = title.split(":")[1];
-            document.getElementById('yt-player-container').style.display = 'block';
-            document.getElementById('wave-svg').style.display = 'none';
-            if (audioElement) {
-                audioElement.pause();
-            }
-            initOrLoadYouTube(vid);
-        } else {
+        document.getElementById('track-title').innerText = "Playing: " + niceName;
+        
+        document.getElementById('yt-player-container').style.display = 'block';
+        document.getElementById('wave-svg').style.display = 'none';
+        if (audioElement) {
+            audioElement.pause();
+        }
+        initOrLoadYouTube(vid);
+    } else {
+        document.getElementById('track-title').innerText = title;
             // Local MP3 fallback
             document.getElementById('yt-player-container').style.display = 'none';
             document.getElementById('wave-svg').style.display = 'block';

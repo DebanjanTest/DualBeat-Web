@@ -275,3 +275,20 @@ body {
     background: rgba(0, 255, 204, 0.1);
     color: var(--cyan);
 }
+
+.clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 12px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+.clear-btn:hover {
+    color: var(--soft);
+}

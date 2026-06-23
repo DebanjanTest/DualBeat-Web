@@ -51,7 +51,8 @@
             <div class="room-badge">ROOM CODE: <span id="display-room-code">----</span></div>
             
             <div class="input-group" style="margin-top: 10px;">
-                <input type="text" id="yt-url" placeholder="Paste YouTube Link or ID" />
+                <input type="text" id="yt-url" placeholder="Paste YouTube Link or Mix Playlist" />
+                <button class="clear-btn" onclick="document.getElementById('yt-url').value=''" title="Clear Link">✕</button>
             </div>
             <button class="test-tone-btn" style="margin-top: 10px;" onclick="loadYouTubeVideo()">▶️ LOAD & PLAY VIDEO</button>
             <div class="engine-grid" style="margin-top: 10px;">
