@@ -3,72 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DualBeat Web Companion</title>
+    <title>DualBeat Web Companion (Hybrid Cloud)</title>
     <link rel="stylesheet" href="./style.css">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
     <div class="phone-container">
         <!-- Brand -->
         <div class="header">
             <div class="logo">DualBeat</div>
-            <div class="tagline">Independent Web Companion</div>
+            <div class="tagline">Hybrid Cloud Engine</div>
         </div>
 
         <!-- Connection Config -->
         <div class="connection-panel" id="connection-panel">
-            <div class="section-title">Host Connection</div>
-            <div class="input-group">
-                <input type="text" id="host-ip" placeholder="e.g. 192.168.1.5" />
-                <span class="port-suffix">:8080</span>
+            <div class="section-title">CHOOSE MODE</div>
+            
+            <div class="mode-box">
+                <div class="mode-title">🌐 Cloud Room (Host or Join)</div>
+                <div class="engine-desc" style="margin-bottom:8px">Sync over the internet. You can host YouTube videos or join an existing room.</div>
+                <div class="input-group">
+                    <input type="text" id="room-code" placeholder="Enter 4-digit Room Code" />
+                </div>
+                <div class="engine-grid" style="margin-top: 10px;">
+                    <button class="engine-btn selected-direct" onclick="hostCloudRoom()">🚀 HOST NEW ROOM</button>
+                    <button class="engine-btn selected-left" onclick="joinCloudRoom()">🔗 JOIN ROOM</button>
+                </div>
             </div>
-            <div class="engine-desc" style="margin-top: 8px;">Enter the Leader IP displayed on the DualBeat Android App. Note: If this web app is hosted on HTTPS, your browser might block connecting to local HTTP IPs. In that case, use HTTP or run locally.</div>
+
+            <div class="mode-divider">OR</div>
+
+            <div class="mode-box">
+                <div class="mode-title">📶 Local Wi-Fi (Legacy)</div>
+                <div class="engine-desc" style="margin-bottom:8px">Connect directly to an Android Leader IP on the same Wi-Fi network.</div>
+                <div class="input-group">
+                    <input type="text" id="host-ip" placeholder="e.g. 192.168.1.5" />
+                    <span class="port-suffix">:8080</span>
+                </div>
+                <button class="engine-btn selected" style="width:100%; margin-top:10px" onclick="unlockAudioContext()">🔌 CONNECT IP</button>
+            </div>
         </div>
 
-        <!-- Step 1 Gesture Unlock -->
-        <div id="unlock-trigger" class="unlock-hero" onclick="unlockAudioContext()">
-            <div class="unlock-title">🔊 CONNECT TO LEADER</div>
-            <div class="unlock-desc">Click here to enable instant synchronization & audio.</div>
+        <!-- Host Control Panel -->
+        <div class="host-panel" id="host-panel" style="display: none;">
+            <div class="section-title">HOST CONTROLS</div>
+            <div class="room-badge">ROOM CODE: <span id="display-room-code">----</span></div>
+            
+            <div class="input-group" style="margin-top: 10px;">
+                <input type="text" id="yt-url" placeholder="Paste YouTube Link or ID" />
+            </div>
+            <button class="test-tone-btn" style="margin-top: 10px;" onclick="loadYouTubeVideo()">▶️ LOAD & PLAY VIDEO</button>
+            <div class="engine-grid" style="margin-top: 10px;">
+                <button class="engine-btn" onclick="toggleCloudPlayPause()">⏯️ PLAY / PAUSE</button>
+            </div>
         </div>
 
         <!-- Visual and playback state card -->
         <div class="display-panel" id="display-panel" style="display: none;">
             <div id="track-title" class="track-title">Loading track info...</div>
-            <div id="sync-status" class="sync-badge">Connecting to Leader...</div>
+            <div id="sync-status" class="sync-badge">Connecting...</div>
             
-            <svg class="wave-visualizer" viewBox="0 0 400 60" preserveAspectRatio="none">
+            <div id="yt-player-container" style="display: none; margin-top: 10px; border-radius: 8px; overflow: hidden; width: 100%; aspect-ratio: 16/9;">
+                <div id="yt-player"></div>
+            </div>
+            
+            <svg class="wave-visualizer" id="wave-svg" viewBox="0 0 400 60" preserveAspectRatio="none">
                 <path id="path1" d="M0,30 Q100,5 200,30 T400,30" fill="none" stroke="#00FFCC" stroke-width="2.5" />
                 <path id="path2" d="M0,30 Q100,50 200,30 T400,30" fill="none" stroke="#8833FF" stroke-width="1.5" />
             </svg>
         </div>
 
-        <!-- Diagnostic Speaker verification -->
-        <button class="test-tone-btn" onclick="playDeviceTestTone()">⚡ RUN COMPANION SPEAKER DIAGNOSTIC TEST</button>
-
-        <!-- Dual Output Engines Selector -->
-        <div class="engine-panel">
-            <div class="section-header">
-                <div class="section-title" style="margin-bottom:0">COMPATIBILITY PIPELINE</div>
-                <span id="engine-badge" class="engine-indicator">Spatial On</span>
-            </div>
-            <div class="engine-desc">If you don't hear sound, swap to <b>Ultra Compatibility</b>. This bypasses security/CORS blocks in Safari/Chrome.</div>
-            <div class="engine-grid">
-                <button id="btn-engine-spatial" class="engine-btn selected" onclick="toggleEngine('spatial')">🛡️ Stereo Spatial<br><span style="font-size:8px;opacity:0.75">Web Audio API</span></button>
-                <button id="btn-engine-direct" class="engine-btn" onclick="toggleEngine('direct')">⚡ Ultra Compatibility<br><span style="font-size:8px;opacity:0.75">Bypass Blocks</span></button>
-            </div>
-        </div>
-
-        <!-- Stereo Placement Config (Spatial Dolby Mapping) -->
-        <div>
-            <div class="section-title">Dolby Soundstage Channel</div>
-            <div class="channel-grid">
-                <button id="btn-left" class="channel-btn" onclick="setChannel('left')">🔊 LEFT<br><span style="font-size:8px;opacity:0.75">Left Only</span></button>
-                <button id="btn-stereo" class="channel-btn selected-stereo" onclick="setChannel('stereo')">🔊 STEREO<br><span style="font-size:8px;opacity:0.75">Full Feed</span></button>
-                <button id="btn-right" class="channel-btn" onclick="setChannel('right')">🔊 RIGHT<br><span style="font-size:8px;opacity:0.75">Right Only</span></button>
-            </div>
-        </div>
-
         <!-- Manual Lag Calibrator Slider -->
-        <div class="calibration-panel">
+        <div class="calibration-panel" id="cal-panel" style="display: none;">
             <div class="calibration-header">
                 <div class="section-title" style="margin-bottom:0">Acoustic Delay Slider</div>
                 <div id="cal-val" class="calibration-val">+0 ms</div>
@@ -76,11 +83,8 @@
             <div class="calibration-desc">Compensate for browser-specific audio engine delays and hardware buffering lags.</div>
             <input type="range" min="-180" max="180" value="0" class="slider" id="cal-slider" oninput="updateCalibration(this.value)">
         </div>
-
-        <div class="footer-txt">
-            Designed with high-precision network clock synchronization.<br>
-            Keep this page active to stay matched with Leader.
-        </div>
+        
+        <button class="test-tone-btn" id="diagnostic-btn" style="display:none; margin-top: 20px;" onclick="playDeviceTestTone()">⚡ RUN SPEAKER DIAGNOSTIC TEST</button>
     </div>
     <script type="module" src="./main.js"></script>
 </body>

@@ -58,10 +58,42 @@ body {
     color: var(--muted);
     text-transform: uppercase;
 }
-.connection-panel {
+.connection-panel, .host-panel {
     background: var(--slate);
     border-radius: 16px;
     padding: 16px;
+}
+.mode-box {
+    background: rgba(120, 133, 158, 0.05);
+    border: 1px solid rgba(120, 133, 158, 0.15);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+.mode-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--soft);
+    margin-bottom: 4px;
+}
+.mode-divider {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+    margin: 12px 0;
+}
+.room-badge {
+    background: rgba(0, 255, 204, 0.1);
+    border: 1px dashed var(--cyan);
+    color: var(--cyan);
+    padding: 8px;
+    border-radius: 8px;
+    text-align: center;
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 16px;
+    letter-spacing: 2px;
 }
 .input-group {
     display: flex;
@@ -70,7 +102,6 @@ body {
     border: 1px solid rgba(120, 133, 158, 0.3);
     border-radius: 12px;
     overflow: hidden;
-    margin-top: 8px;
 }
 .input-group input {
     flex: 1;
@@ -93,35 +124,6 @@ body {
     background: rgba(0, 0, 0, 0.2);
     border-left: 1px solid rgba(120, 133, 158, 0.3);
 }
-.unlock-hero {
-    background: linear-gradient(135deg, rgba(0,255,204,0.1), rgba(136,51,255,0.1));
-    border: 1px solid var(--cyan);
-    padding: 20px;
-    border-radius: 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.unlock-hero:hover {
-    transform: scale(1.02);
-    box-shadow: 0 0 15px rgba(0,255,204,0.3);
-}
-.unlock-hero.disabled {
-    opacity: 0.5;
-    pointer-events: none;
-    border-color: var(--muted);
-}
-.unlock-title {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--cyan);
-    margin-bottom: 6px;
-}
-.unlock-desc {
-    font-size: 11px;
-    color: var(--soft);
-    opacity: 0.8;
-}
 .display-panel {
     background: var(--slate);
     border-radius: 16px;
@@ -135,6 +137,7 @@ body {
     font-weight: 700;
     color: #FFF;
     margin-bottom: 6px;
+    word-break: break-all;
 }
 .sync-badge {
     display: inline-block;
@@ -174,41 +177,6 @@ body {
     color: var(--muted);
     text-transform: uppercase;
     margin-bottom: 10px;
-}
-.channel-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-}
-.channel-btn {
-    background: var(--slate);
-    border: 1px solid transparent;
-    border-radius: 12px;
-    padding: 12px 6px;
-    color: var(--soft);
-    font-size: 11px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-}
-.channel-btn:hover {
-    border-color: rgba(120, 133, 158, 0.4);
-}
-.channel-btn.selected-left {
-    border-color: var(--cyan);
-    background: rgba(0, 255, 204, 0.1);
-    color: var(--cyan);
-}
-.channel-btn.selected-stereo {
-    border-color: var(--orange);
-    background: rgba(255, 153, 0, 0.1);
-    color: var(--orange);
-}
-.channel-btn.selected-right {
-    border-color: var(--purple);
-    background: rgba(136, 51, 255, 0.1);
-    color: var(--purple);
 }
 .calibration-panel {
     background: var(--slate);
@@ -251,12 +219,6 @@ body {
     cursor: pointer;
     box-shadow: 0 0 8px rgba(255,153,0,0.6);
 }
-.footer-txt {
-    font-size: 9px;
-    color: var(--muted);
-    text-align: center;
-    line-height: 1.4;
-}
 .test-tone-btn {
     background: rgba(0, 255, 204, 0.08);
     border: 1px dashed var(--cyan);
@@ -274,39 +236,6 @@ body {
 .test-tone-btn:hover {
     background: rgba(0, 255, 204, 0.18);
     box-shadow: 0 0 10px rgba(0, 255, 204, 0.25);
-}
-.engine-panel {
-    background: var(--slate);
-    border-radius: 16px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.engine-indicator {
-    font-size: 8px;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    background: rgba(136, 51, 255, 0.2);
-    color: var(--purple);
-    border: 1px solid var(--purple);
-}
-.engine-indicator.direct {
-    background: rgba(0, 255, 204, 0.2);
-    color: var(--cyan);
-    border: 1px solid var(--cyan);
-}
-.engine-desc {
-    font-size: 9px;
-    color: var(--muted);
-    line-height: 1.3;
 }
 .engine-grid {
     display: grid;
@@ -340,4 +269,9 @@ body {
     border-color: var(--cyan);
     color: #FFF;
     box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
+}
+.engine-btn.selected-left {
+    border-color: var(--cyan);
+    background: rgba(0, 255, 204, 0.1);
+    color: var(--cyan);
 }
