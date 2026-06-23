@@ -31,21 +31,32 @@ window.loadYouTubeVideo = loadYouTubeVideo;
 window.toggleCloudPlayPause = toggleCloudPlayPause;
 window.playDeviceTestTone = playDeviceTestTone;
 
-// YouTube API Ready
+let isYoutubeApiReady = false;
+
 window.onYouTubeIframeAPIReady = function() {
-    ytPlayer = new YT.Player('yt-player', {
-        height: '100%',
-        width: '100%',
-        videoId: '',
-        playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'rel': 0 },
-        events: {
-            'onReady': onPlayerReady
-        }
-    });
+    console.log("YouTube API Loaded");
+    isYoutubeApiReady = true;
 }
 
-function onPlayerReady(event) {
-    console.log("YouTube Player Ready");
+function initOrLoadYouTube(vid) {
+    if (!isYoutubeApiReady) return;
+    
+    if (!ytPlayer) {
+        ytPlayer = new YT.Player('yt-player', {
+            height: '100%',
+            width: '100%',
+            videoId: vid,
+            playerVars: { 'autoplay': 1, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0 },
+            events: {
+                'onReady': function(event) {
+                    console.log("YouTube Player Ready");
+                    event.target.playVideo();
+                }
+            }
+        });
+    } else if (typeof ytPlayer.loadVideoById === 'function') {
+        ytPlayer.loadVideoById(vid);
+    }
 }
 
 function unlockAudioContext() {
@@ -223,9 +234,7 @@ function applyTrackTitle(title) {
             if (audioElement) {
                 audioElement.pause();
             }
-            if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
-                ytPlayer.loadVideoById(vid);
-            }
+            initOrLoadYouTube(vid);
         } else {
             // Local MP3 fallback
             document.getElementById('yt-player-container').style.display = 'none';
@@ -272,10 +281,19 @@ function handleSyncData(data, isCloud) {
         
         if (masterTitle.startsWith("YOUTUBE:")) {
             if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                const state = ytPlayer.getPlayerState();
                 const drift = Math.abs(ytPlayer.getCurrentTime() - targetPos);
-                if (ytPlayer.getPlayerState() !== 1) ytPlayer.playVideo();
-                // YouTube buffer tolerance: only hard seek if off by more than 200ms
-                if (drift > 0.200) ytPlayer.seekTo(targetPos + 0.1, true);
+                
+                // Only command play if we aren't already playing or buffering
+                if (state !== 1 && state !== 3) {
+                    ytPlayer.playVideo();
+                }
+                
+                // Only seek if we are currently playing and drifted significantly.
+                // Do NOT seek while buffering, as it causes an infinite buffering loop.
+                if (state === 1 && drift > 0.250) {
+                    ytPlayer.seekTo(targetPos + 0.15, true);
+                }
             }
         } else {
             const drift = targetPos - (audioElement.currentTime || 0);
