@@ -201,7 +201,8 @@ function sendPing() {
 function publishCloudState() {
     if (!mqttClient || !mqttClient.connected) return;
     const payload = JSON.stringify(cloudState);
-    mqttClient.publish(`dualbeat/room/${roomCode}`, payload, { qos: 0, retain: true });
+    // Disable retain to prevent late-joining clients from receiving stale, frozen timestamps that cause ghost-loops
+    mqttClient.publish(`dualbeat/room/${roomCode}`, payload, { qos: 0, retain: false });
 }
 
 function loadYouTubeVideo() {
@@ -293,7 +294,6 @@ function startUI() {
 }
 
 function applyTrackTitle(title) {
-    if (window.currentTrackTitle === title) return;
     window.currentTrackTitle = title;
     
     if (title.startsWith("YOUTUBE:")) {
@@ -409,6 +409,7 @@ async function startSyncLoop() {
     if (currentMode !== 'local') return; // Handled by MQTT
     
     while (true) {
+        if (currentMode !== 'local') break; // Kill zombie loop if mode switched
         try {
             const t0 = Date.now();
             const resp = await fetch(`${leaderBaseUrl}/status`);
