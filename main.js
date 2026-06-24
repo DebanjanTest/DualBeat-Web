@@ -14,12 +14,14 @@ let clockOffset = 0; // Host Time - Local Time
 let pingInterval = null;
 let isSyncing = false;
 let syncInterval = null;
+let isWaitingForGlobalStart = false;
 
 let cloudState = {
     isPlaying: false,
-    trackTitle: '',
+    trackTitle: "",
     trackPositionMs: 0,
-    timestamp: 0
+    timestamp: 0,
+    globalStartTime: 0
 };
 
 window.currentTrackTitle = '';
@@ -38,10 +40,48 @@ let isYoutubeApiReady = false;
 window.onYouTubeIframeAPIReady = function() {
     console.log("YouTube API Loaded");
     isYoutubeApiReady = true;
+};
+
+function checkYouTubeApi() {
+    if (window.YT && window.YT.Player) {
+        isYoutubeApiReady = true;
+    }
+    return isYoutubeApiReady;
+}
+
+function scheduleGlobalStart() {
+    const hostTimeNow = Date.now() + clockOffset;
+    const timeUntilStart = (window.currentGlobalStartTime || 0) - hostTimeNow;
+    
+    if (timeUntilStart > 0) {
+        isWaitingForGlobalStart = true;
+        document.getElementById('sync-status').innerText = "GLOBAL START IN " + Math.round(timeUntilStart/1000) + "s";
+        document.getElementById('sync-status').className = "sync-badge error";
+        
+        const startInterval = setInterval(() => {
+            const currentHostTime = Date.now() + clockOffset;
+            if (currentHostTime >= window.currentGlobalStartTime) {
+                clearInterval(startInterval);
+                isWaitingForGlobalStart = false;
+                if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
+                    ytPlayer.playVideo();
+                }
+                document.getElementById('sync-status').innerText = "SYNCED";
+                document.getElementById('sync-status').className = "sync-badge active";
+            } else {
+                document.getElementById('sync-status').innerText = "GLOBAL START IN " + Math.round((window.currentGlobalStartTime - currentHostTime)/1000) + "s";
+            }
+        }, 10);
+    } else {
+        isWaitingForGlobalStart = false;
+        if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
+            ytPlayer.playVideo();
+        }
+    }
 }
 
 function initOrLoadYouTube(vid) {
-    if (!isYoutubeApiReady) {
+    if (!checkYouTubeApi()) {
         setTimeout(() => initOrLoadYouTube(vid), 500);
         return;
     }
@@ -51,16 +91,26 @@ function initOrLoadYouTube(vid) {
             height: '100%',
             width: '100%',
             videoId: vid,
-            playerVars: { 'autoplay': 1, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0 },
+            playerVars: { 'autoplay': 0, 'controls': 1, 'disablekb': 0, 'fs': 0, 'modestbranding': 1, 'rel': 0 },
             events: {
                 'onReady': function(event) {
                     console.log("YouTube Player Ready");
-                    event.target.playVideo();
+                    if (window.currentGlobalStartTime) {
+                        event.target.cueVideoById(vid);
+                        scheduleGlobalStart();
+                    } else {
+                        event.target.playVideo();
+                    }
                 }
             }
         });
     } else if (typeof ytPlayer.loadVideoById === 'function') {
-        ytPlayer.loadVideoById(vid);
+        if (window.currentGlobalStartTime) {
+            ytPlayer.cueVideoById(vid);
+            scheduleGlobalStart();
+        } else {
+            ytPlayer.loadVideoById(vid);
+        }
     }
 }
 
@@ -275,11 +325,13 @@ function loadYouTubeVideo() {
         window.currentTrackTitle = "HOST_PLAYLIST_LOADING";
     } else if (vid) {
         cloudState.trackTitle = "YOUTUBE:" + vid;
+        cloudState.globalStartTime = Date.now() + 4000;
+        window.currentGlobalStartTime = cloudState.globalStartTime;
         applyTrackTitle(cloudState.trackTitle);
     }
     
+    // Do not falsely claim we are playing before the player actually starts!
     cloudState.trackPositionMs = 0;
-    cloudState.isPlaying = true;
     publishCloudState();
 }
 
@@ -351,7 +403,15 @@ function handleSyncData(data, isCloud) {
     let masterPos = data.trackPositionMs / 1000.0;
     const masterTitle = data.trackTitle;
     
-    applyTrackTitle(masterTitle);
+    if (data.globalStartTime) {
+        window.currentGlobalStartTime = data.globalStartTime;
+    }
+
+    if (masterTitle !== window.currentTrackTitle) {
+        applyTrackTitle(masterTitle);
+    }
+
+    if (isWaitingForGlobalStart) return;
     
     if (isCloud && data.timestamp) {
         // Precise NTP-calibrated transit latency mapping
