@@ -452,52 +452,39 @@ function handleSyncData(data, isCloud) {
                     ytPlayer.playVideo();
                 }
                 
-                // Clock-Synced Rendezvous Protocol (Absolute Zero Lag)
+                // Smooth Native Sync Protocol
                 if (state === 1) {
-                    const isMassiveJump = absDrift > 5.0; // Host skipped timeline
-                    const isCooldownActive = Date.now() - (window.lastSeekTime || 0) < 10000;
+                    const isCooldownActive = Date.now() - (window.lastSeekTime || 0) < 6000;
                     
-                    // Trigger sync if heavily drifted (0.8s), ignoring micro-stutters.
-                    // If cooldown is active to prevent stutter loops, ONLY sync if it's a massive jump!
-                    if (absDrift > 0.8 && (!isCooldownActive || isMassiveJump)) {
-                        isSyncing = true;
+                    if (absDrift > 0.6 && !isCooldownActive) {
                         const hostTimeNow = Date.now() + clockOffset;
-                        let rendezvousPos, rendezvousTime;
                         
-                        if (driftMs > 0.8 && driftMs < 5.0) {
-                            // Client is AHEAD. Freeze exactly here and wait for Host to reach this frame.
-                            rendezvousPos = clientTime;
-                            rendezvousTime = hostTimeNow + (driftMs * 1000);
+                        if (driftMs > 0.6 && driftMs < 4.0) {
+                            // Client is AHEAD. Pause the video natively and resume after the drift duration.
                             ytPlayer.pauseVideo();
-                        } else {
-                            // Client is BEHIND or wildly out of sync.
-                            // Jump 3.5 seconds into the Host's future to give the browser time to buffer the leap.
-                            const jumpAheadSec = 3.5;
-                            rendezvousPos = targetPos + jumpAheadSec;
-                            rendezvousTime = hostTimeNow + (jumpAheadSec * 1000);
+                            document.getElementById('sync-status').innerText = "PAUSING TO SYNC...";
+                            document.getElementById('sync-status').className = "sync-badge error";
                             
-                            ytPlayer.seekTo(rendezvousPos, true);
-                            ytPlayer.pauseVideo();
-                        }
-                        
-                        document.getElementById('sync-status').innerText = "RENDEZVOUS WAITING...";
-                        document.getElementById('sync-status').className = "sync-badge error";
-                        
-                        syncInterval = setInterval(() => {
-                            if (!isSyncing) {
-                                clearInterval(syncInterval);
-                                return;
-                            }
-                            const currentHostTime = Date.now() + clockOffset;
-                            if (currentHostTime >= rendezvousTime) {
-                                clearInterval(syncInterval);
+                            setTimeout(() => {
                                 ytPlayer.playVideo();
-                                isSyncing = false;
-                                window.lastSeekTime = Date.now(); // Start 10s anti-stutter cooldown
                                 document.getElementById('sync-status').innerText = "SYNCED";
                                 document.getElementById('sync-status').className = "sync-badge active";
-                            }
-                        }, 20); // 20ms precision polling
+                            }, driftMs * 1000);
+                            
+                            window.lastSeekTime = Date.now();
+                        } else {
+                            // Client is BEHIND. Seek to the target position and let YouTube handle the buffering natively.
+                            ytPlayer.seekTo(targetPos, true);
+                            document.getElementById('sync-status').innerText = "CATCHING UP...";
+                            document.getElementById('sync-status').className = "sync-badge error";
+                            
+                            setTimeout(() => {
+                                document.getElementById('sync-status').innerText = "SYNCED";
+                                document.getElementById('sync-status').className = "sync-badge active";
+                            }, 2000);
+                            
+                            window.lastSeekTime = Date.now();
+                        }
                     }
                 }
             }
