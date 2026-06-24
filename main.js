@@ -91,7 +91,8 @@ function hostCloudRoom() {
     setInterval(() => {
         if (currentMode === 'cloud_host' && ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
             const state = ytPlayer.getPlayerState();
-            cloudState.isPlaying = (state === 1);
+            // If the Host is buffering (3), keep broadcasting "isPlaying" to prevent the clients from stutter-pausing.
+            cloudState.isPlaying = (state === 1 || state === 3);
             cloudState.trackPositionMs = Math.floor(ytPlayer.getCurrentTime() * 1000);
             
             // Dynamic video ID extraction to perfectly support Playlists / Mixes auto-advancing
@@ -182,9 +183,12 @@ function initMqtt() {
                         const estimatedHostTime = p.hostTime + (rtt / 2);
                         const newOffset = estimatedHostTime - current;
                         
-                        // Smooth the clock offset using a moving average filter to prevent jitter
-                        if (clockOffset === 0) clockOffset = newOffset;
-                        else clockOffset = (clockOffset * 0.8) + (newOffset * 0.2);
+                        // Smooth the clock offset, but immediately accept huge timezone jumps
+                        if (clockOffset === 0 || Math.abs(newOffset - clockOffset) > 2000) {
+                            clockOffset = newOffset;
+                        } else {
+                            clockOffset = (clockOffset * 0.8) + (newOffset * 0.2);
+                        }
                         
                         document.getElementById('sync-status').innerText = "SYNCED (RTT " + Math.round(rtt) + "ms)";
                     }
@@ -367,28 +371,33 @@ function handleSyncData(data, isCloud) {
                 const driftMs = clientTime - targetPos; // Positive = Client is AHEAD
                 const absDrift = Math.abs(driftMs);
                 
-                // Only command play if we aren't already playing or buffering
-                if (state !== 1 && state !== 3) {
-                    ytPlayer.playVideo();
-                }
-                
-                // Non-destructive Buffer-Preserving Sync Engine
-                if (state === 1) {
-                    const now = Date.now();
-                    if (absDrift > 4.0) {
-                        // Massive timeline jump by Host. Flushing buffer and hard seeking is unavoidable.
-                        if (now - (window.lastSeekTime || 0) > 2500) {
-                            ytPlayer.seekTo(targetPos + 0.1, true);
-                            window.lastSeekTime = now;
-                        }
-                    } else if (typeof ytPlayer.setPlaybackRate === 'function') {
-                        // Micro-adjust playback speed to seamlessly sync WITHOUT pausing or buffering
-                        if (driftMs > 0.400) {
-                            ytPlayer.setPlaybackRate(0.75); // Client is ahead, slow down
-                        } else if (driftMs < -0.400) {
-                            ytPlayer.setPlaybackRate(1.25); // Client is behind, speed up
-                        } else if (absDrift < 0.150) {
-                            ytPlayer.setPlaybackRate(1.0);  // Perfect sync sweet-spot, normalize
+                if (driftMs > 1.5) {
+                    // Client is way ahead (Host is likely buffering). Pause cleanly to wait for Host.
+                    if (state === 1) ytPlayer.pauseVideo();
+                } else {
+                    // Only command play if we aren't already playing or buffering
+                    if (state !== 1 && state !== 3) {
+                        ytPlayer.playVideo();
+                    }
+                    
+                    // Non-destructive Buffer-Preserving Sync Engine
+                    if (state === 1) {
+                        const now = Date.now();
+                        if (absDrift > 4.0) {
+                            // Massive timeline jump by Host. Hard seeking is unavoidable.
+                            if (now - (window.lastSeekTime || 0) > 2500) {
+                                ytPlayer.seekTo(targetPos + 0.1, true);
+                                window.lastSeekTime = now;
+                            }
+                        } else if (typeof ytPlayer.setPlaybackRate === 'function') {
+                            // Micro-adjust playback speed to seamlessly sync WITHOUT pausing
+                            if (driftMs > 0.400) {
+                                ytPlayer.setPlaybackRate(0.5); // Client is ahead, slow down aggressively
+                            } else if (driftMs < -0.400) {
+                                ytPlayer.setPlaybackRate(1.5); // Client is behind, speed up aggressively
+                            } else if (absDrift < 0.150) {
+                                ytPlayer.setPlaybackRate(1.0); // Perfect sync sweet-spot, normalize
+                            }
                         }
                     }
                 }
