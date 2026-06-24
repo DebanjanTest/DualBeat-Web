@@ -180,8 +180,13 @@ function initMqtt() {
                         const current = Date.now();
                         const rtt = current - p.clientTime;
                         const estimatedHostTime = p.hostTime + (rtt / 2);
-                        clockOffset = estimatedHostTime - current;
-                        document.getElementById('sync-status').innerText = "SYNCED (RTT " + rtt + "ms)";
+                        const newOffset = estimatedHostTime - current;
+                        
+                        // Smooth the clock offset using a moving average filter to prevent jitter
+                        if (clockOffset === 0) clockOffset = newOffset;
+                        else clockOffset = (clockOffset * 0.8) + (newOffset * 0.2);
+                        
+                        document.getElementById('sync-status').innerText = "SYNCED (RTT " + Math.round(rtt) + "ms)";
                     }
                 } catch(e) {}
             }
@@ -358,17 +363,34 @@ function handleSyncData(data, isCloud) {
         if (masterTitle.startsWith("YOUTUBE:")) {
             if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
                 const state = ytPlayer.getPlayerState();
-                const drift = Math.abs(ytPlayer.getCurrentTime() - targetPos);
+                const clientTime = ytPlayer.getCurrentTime();
+                const driftMs = clientTime - targetPos; // Positive = Client is AHEAD
+                const absDrift = Math.abs(driftMs);
                 
                 // Only command play if we aren't already playing or buffering
                 if (state !== 1 && state !== 3) {
                     ytPlayer.playVideo();
                 }
                 
-                // Only seek if we are currently playing and drifted significantly.
-                // Do NOT seek while buffering, as it causes an infinite buffering loop.
-                if (state === 1 && drift > 0.250) {
-                    ytPlayer.seekTo(targetPos + 0.15, true);
+                // Non-destructive Buffer-Preserving Sync Engine
+                if (state === 1) {
+                    const now = Date.now();
+                    if (absDrift > 4.0) {
+                        // Massive timeline jump by Host. Flushing buffer and hard seeking is unavoidable.
+                        if (now - (window.lastSeekTime || 0) > 2500) {
+                            ytPlayer.seekTo(targetPos + 0.1, true);
+                            window.lastSeekTime = now;
+                        }
+                    } else if (typeof ytPlayer.setPlaybackRate === 'function') {
+                        // Micro-adjust playback speed to seamlessly sync WITHOUT pausing or buffering
+                        if (driftMs > 0.400) {
+                            ytPlayer.setPlaybackRate(0.75); // Client is ahead, slow down
+                        } else if (driftMs < -0.400) {
+                            ytPlayer.setPlaybackRate(1.25); // Client is behind, speed up
+                        } else if (absDrift < 0.150) {
+                            ytPlayer.setPlaybackRate(1.0);  // Perfect sync sweet-spot, normalize
+                        }
+                    }
                 }
             }
         } else {
