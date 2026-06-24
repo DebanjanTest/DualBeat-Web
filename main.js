@@ -323,9 +323,15 @@ function loadYouTubeVideo() {
         loadPlaylistFunc();
         
         window.currentTrackTitle = "HOST_PLAYLIST_LOADING";
+        if (currentMode === 'cloud_host') {
+            cloudState.trackTitle = "YOUTUBE:" + window.youtubeMixQueue[0];
+            cloudState.globalStartTime = Date.now() + 2000;
+            window.currentGlobalStartTime = cloudState.globalStartTime;
+            publishCloudState();
+        }
     } else if (vid) {
         cloudState.trackTitle = "YOUTUBE:" + vid;
-        cloudState.globalStartTime = Date.now() + 4000;
+        cloudState.globalStartTime = Date.now() + 2000;
         window.currentGlobalStartTime = cloudState.globalStartTime;
         applyTrackTitle(cloudState.trackTitle);
     }
@@ -447,45 +453,52 @@ function handleSyncData(data, isCloud) {
                 }
                 
                 // Clock-Synced Rendezvous Protocol (Absolute Zero Lag)
-                if (state === 1 && absDrift > 0.350) {
-                    isSyncing = true;
-                    const hostTimeNow = Date.now() + clockOffset;
-                    let rendezvousPos, rendezvousTime;
+                if (state === 1) {
+                    const isMassiveJump = absDrift > 5.0; // Host skipped timeline
+                    const isCooldownActive = Date.now() - (window.lastSeekTime || 0) < 10000;
                     
-                    if (driftMs > 0.350 && driftMs < 3.0) {
-                        // Client is AHEAD. Freeze exactly here and wait for Host to reach this frame.
-                        rendezvousPos = clientTime;
-                        rendezvousTime = hostTimeNow + (driftMs * 1000);
-                        ytPlayer.seekTo(rendezvousPos, true);
-                        ytPlayer.pauseVideo();
-                    } else {
-                        // Client is BEHIND or wildly out of sync.
-                        // Jump 2.5 seconds into the Host's future to give the browser time to buffer the leap.
-                        const jumpAheadSec = 2.5;
-                        rendezvousPos = targetPos + jumpAheadSec;
-                        rendezvousTime = hostTimeNow + (jumpAheadSec * 1000);
+                    // Trigger sync if heavily drifted (0.8s), ignoring micro-stutters.
+                    // If cooldown is active to prevent stutter loops, ONLY sync if it's a massive jump!
+                    if (absDrift > 0.8 && (!isCooldownActive || isMassiveJump)) {
+                        isSyncing = true;
+                        const hostTimeNow = Date.now() + clockOffset;
+                        let rendezvousPos, rendezvousTime;
                         
-                        ytPlayer.seekTo(rendezvousPos, true);
-                        ytPlayer.pauseVideo();
+                        if (driftMs > 0.8 && driftMs < 5.0) {
+                            // Client is AHEAD. Freeze exactly here and wait for Host to reach this frame.
+                            rendezvousPos = clientTime;
+                            rendezvousTime = hostTimeNow + (driftMs * 1000);
+                            ytPlayer.pauseVideo();
+                        } else {
+                            // Client is BEHIND or wildly out of sync.
+                            // Jump 3.5 seconds into the Host's future to give the browser time to buffer the leap.
+                            const jumpAheadSec = 3.5;
+                            rendezvousPos = targetPos + jumpAheadSec;
+                            rendezvousTime = hostTimeNow + (jumpAheadSec * 1000);
+                            
+                            ytPlayer.seekTo(rendezvousPos, true);
+                            ytPlayer.pauseVideo();
+                        }
+                        
+                        document.getElementById('sync-status').innerText = "RENDEZVOUS WAITING...";
+                        document.getElementById('sync-status').className = "sync-badge error";
+                        
+                        syncInterval = setInterval(() => {
+                            if (!isSyncing) {
+                                clearInterval(syncInterval);
+                                return;
+                            }
+                            const currentHostTime = Date.now() + clockOffset;
+                            if (currentHostTime >= rendezvousTime) {
+                                clearInterval(syncInterval);
+                                ytPlayer.playVideo();
+                                isSyncing = false;
+                                window.lastSeekTime = Date.now(); // Start 10s anti-stutter cooldown
+                                document.getElementById('sync-status').innerText = "SYNCED";
+                                document.getElementById('sync-status').className = "sync-badge active";
+                            }
+                        }, 20); // 20ms precision polling
                     }
-                    
-                    document.getElementById('sync-status').innerText = "RENDEZVOUS WAITING...";
-                    document.getElementById('sync-status').className = "sync-badge error";
-                    
-                    syncInterval = setInterval(() => {
-                        if (!isSyncing) {
-                            clearInterval(syncInterval);
-                            return;
-                        }
-                        const currentHostTime = Date.now() + clockOffset;
-                        if (currentHostTime >= rendezvousTime) {
-                            clearInterval(syncInterval);
-                            ytPlayer.playVideo();
-                            isSyncing = false;
-                            document.getElementById('sync-status').innerText = "SYNCED";
-                            document.getElementById('sync-status').className = "sync-badge active";
-                        }
-                    }, 10); // 10ms precision polling
                 }
             }
         } else {
