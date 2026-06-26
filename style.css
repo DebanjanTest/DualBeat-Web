@@ -7,6 +7,12 @@
     --orange: #FF9900;
     --muted: #78859E;
     --soft: #E4E9F2;
+    
+    --shadow-outer: 6px 6px 12px rgba(0,0,0,0.6), -4px -4px 10px rgba(255,255,255,0.03);
+    --shadow-inner: inset 4px 4px 8px rgba(0,0,0,0.7), inset -3px -3px 8px rgba(255,255,255,0.02);
+    --btn-gradient: linear-gradient(145deg, #1a202b, #151a23);
+    --btn-active-gradient: linear-gradient(145deg, #151a23, #1a202b);
+    --panel-gradient: linear-gradient(145deg, #151a23, #11151c);
 }
 * {
     box-sizing: border-box;
@@ -28,11 +34,11 @@ body {
 .phone-container {
     width: 100%;
     max-width: 440px;
-    background: var(--glass);
-    border: 1px solid rgba(120, 133, 158, 0.25);
-    border-radius: 24px;
-    padding: 24px;
-    box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+    background: var(--slate);
+    border: 1px solid rgba(120, 133, 158, 0.1);
+    border-radius: 30px;
+    padding: 28px;
+    box-shadow: 12px 12px 24px rgba(0,0,0,0.8), -8px -8px 20px rgba(255,255,255,0.02);
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -59,16 +65,18 @@ body {
     text-transform: uppercase;
 }
 .connection-panel, .host-panel {
-    background: var(--slate);
-    border-radius: 16px;
+    background: var(--panel-gradient);
+    border-radius: 20px;
     padding: 16px;
+    box-shadow: var(--shadow-outer);
 }
 .mode-box {
-    background: rgba(120, 133, 158, 0.05);
-    border: 1px solid rgba(120, 133, 158, 0.15);
-    border-radius: 12px;
-    padding: 12px;
+    background: var(--slate);
+    border: none;
+    border-radius: 16px;
+    padding: 16px;
     margin-bottom: 8px;
+    box-shadow: var(--shadow-inner);
 }
 .mode-title {
     font-size: 13px;
@@ -84,24 +92,26 @@ body {
     margin: 12px 0;
 }
 .room-badge {
-    background: rgba(0, 255, 204, 0.1);
-    border: 1px dashed var(--cyan);
+    background: var(--btn-gradient);
+    border: none;
     color: var(--cyan);
-    padding: 8px;
-    border-radius: 8px;
+    padding: 10px;
+    border-radius: 12px;
     text-align: center;
     font-family: monospace;
     font-weight: bold;
     font-size: 16px;
     letter-spacing: 2px;
+    box-shadow: var(--shadow-inner);
+    text-shadow: 0 0 5px rgba(0,255,204,0.4);
 }
 .input-group {
     display: flex;
     align-items: center;
-    background: rgba(120, 133, 158, 0.1);
-    border: 1px solid rgba(120, 133, 158, 0.3);
+    background: var(--slate);
     border-radius: 12px;
     overflow: hidden;
+    box-shadow: var(--shadow-inner);
 }
 .input-group input {
     flex: 1;
@@ -125,12 +135,14 @@ body {
     border-left: 1px solid rgba(120, 133, 158, 0.3);
 }
 .display-panel {
-    background: var(--slate);
-    border-radius: 16px;
-    padding: 16px;
+    background: var(--panel-gradient);
+    border-radius: 20px;
+    padding: 20px;
     text-align: center;
     position: relative;
     overflow: hidden;
+    box-shadow: var(--shadow-outer);
+    border: 1px solid rgba(255,255,255,0.02);
 }
 .track-title {
     font-size: 18px;
@@ -179,9 +191,11 @@ body {
     margin-bottom: 10px;
 }
 .calibration-panel {
-    background: var(--slate);
-    border-radius: 16px;
-    padding: 16px;
+    background: var(--panel-gradient);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: var(--shadow-outer);
+    border: 1px solid rgba(255,255,255,0.02);
 }
 .calibration-header {
     display: flex;
@@ -204,10 +218,11 @@ body {
     width: 100%;
     -webkit-appearance: none;
     appearance: none;
-    height: 6px;
-    border-radius: 3px;
-    background: rgba(120, 133, 158, 0.3);
+    height: 8px;
+    border-radius: 4px;
+    background: var(--slate);
     outline: none;
+    box-shadow: var(--shadow-inner);
 }
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -220,11 +235,11 @@ body {
     box-shadow: 0 0 8px rgba(255,153,0,0.6);
 }
 .test-tone-btn {
-    background: rgba(0, 255, 204, 0.08);
-    border: 1px dashed var(--cyan);
+    background: var(--btn-gradient);
+    border: none;
     color: var(--cyan);
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 14px;
+    padding: 12px 14px;
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
@@ -232,10 +247,13 @@ body {
     transition: all 0.2s ease;
     text-align: center;
     width: 100%;
+    box-shadow: var(--shadow-outer);
 }
 .test-tone-btn:hover {
-    background: rgba(0, 255, 204, 0.18);
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.25);
+    background: var(--btn-active-gradient);
+    box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -2px -2px 6px rgba(255,255,255,0.02);
+    color: #fff;
+    text-shadow: 0 0 8px var(--cyan);
 }
 .engine-grid {
     display: grid;
@@ -243,37 +261,38 @@ body {
     gap: 10px;
 }
 .engine-btn {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(120, 133, 158, 0.15);
-    border-radius: 12px;
-    padding: 10px 6px;
+    background: var(--btn-gradient);
+    border: none;
+    border-radius: 14px;
+    padding: 12px 6px;
     color: var(--muted);
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
     text-align: center;
     transition: all 0.2s ease;
+    box-shadow: var(--shadow-outer);
 }
 .engine-btn:hover {
-    border-color: rgba(120, 133, 158, 0.3);
     color: var(--soft);
 }
 .engine-btn.selected {
-    background: rgba(136, 51, 255, 0.12);
-    border-color: var(--purple);
-    color: #FFF;
-    box-shadow: 0 0 10px rgba(136, 51, 255, 0.15);
+    background: var(--btn-active-gradient);
+    color: var(--purple);
+    box-shadow: var(--shadow-inner);
+    text-shadow: 0 0 5px var(--purple);
 }
 .engine-btn.selected-direct {
-    background: rgba(0, 255, 204, 0.12);
-    border-color: var(--cyan);
-    color: #FFF;
-    box-shadow: 0 0 10px rgba(0, 255, 204, 0.15);
+    background: var(--btn-active-gradient);
+    color: var(--cyan);
+    box-shadow: var(--shadow-inner);
+    text-shadow: 0 0 5px var(--cyan);
 }
 .engine-btn.selected-left {
-    border-color: var(--cyan);
-    background: rgba(0, 255, 204, 0.1);
+    background: var(--btn-active-gradient);
     color: var(--cyan);
+    box-shadow: var(--shadow-inner);
+    text-shadow: 0 0 5px var(--cyan);
 }
 
 .clear-btn {
